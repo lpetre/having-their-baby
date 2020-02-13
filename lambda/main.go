@@ -39,7 +39,7 @@ func updateBaby(ctx context.Context, who string, status string) error {
 }
 
 func HandleRequest(ctx context.Context, sms TwilioSMSEvent) ([]byte, error) {
-	err := updateBaby(ctx, "lukeandrebecca", sms.Body)
+	err := updateBaby(ctx, "arelukeandrebecca", sms.Body)
 	if err != nil {
 		return nil, err
 	}
