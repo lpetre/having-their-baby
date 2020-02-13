@@ -21,6 +21,11 @@ module.exports = {
       resolve: `gatsby-plugin-s3`,
       options: {
         bucketName: "havingtheirbaby.com",
+        params: {
+          '**/**.png': {
+            CacheControl: 'public, max-age=31536000, immutable',
+          }
+        },
       },
     },
     {
@@ -47,6 +52,7 @@ module.exports = {
         theme_color: `#ffffff`,
         display: `browser`,
         icon: `src/images/icon.png`, // This path is relative to the root of the site.
+        cache_busting_mode: `name`,
       },
     },
     // this (optional) plugin enables Progressive Web App + Offline functionality
