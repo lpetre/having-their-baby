@@ -1,11 +1,11 @@
 package main
 
 import (
-	"log"
+	"fmt"
+	"net/url"
 
 	"golang.org/x/net/context"
 
-	"cloud.google.com/go/firestore"
 	firebase "firebase.google.com/go"
 
 	"github.com/BTBurke/twiml"
@@ -18,34 +18,65 @@ type TwilioSMSEvent struct {
 	Body string `json:"Body"`
 }
 
-func updateBaby(ctx context.Context, who string, status string) error {
+func updateBaby(ctx context.Context, from string, status string) (int, error) {
 	opt := option.WithCredentialsFile("./credentials.json")
 	app, err := firebase.NewApp(ctx, nil, opt)
 	if err != nil {
-		return err
+		return 0, err
 	}
 
 	client, err := app.Firestore(ctx)
 	if err != nil {
-		return err
+		return 0, err
 	}
 
 	defer client.Close()
 
-	babies := client.Collection("babies")
-	curr := babies.Doc(who)
-	_, err = curr.Update(ctx, []firestore.Update{{Path: "status", Value: status}})
-	return err
+	ownerRef, err := client.Collection("numbers").Doc(from).Get(ctx)
+	if err != nil {
+		return 0, err
+	}
+	ownerData := ownerRef.Data()
+	babies, foundBabies := ownerData["babies"]
+	if !foundBabies {
+		return 0, nil
+	}
+
+	batch := client.Batch()
+
+	babiesMap := babies.([]interface{})
+	for _, baby := range babiesMap {
+		babyRef := client.Collection("babies").Doc(baby.(string))
+		batch.Set(babyRef, map[string]interface{}{
+			"status": status,
+		})
+	}
+
+	_, err = batch.Commit(ctx)
+	return len(babiesMap), err
 }
 
-func HandleRequest(ctx context.Context, sms TwilioSMSEvent) ([]byte, error) {
-	err := updateBaby(ctx, "arelukeandrebecca", sms.Body)
+func HandleRequest(ctx context.Context, sms TwilioSMSEvent) (string, error) {
+	from, err := url.QueryUnescape(sms.From)
 	if err != nil {
-		return nil, err
+		return "", err
+	}
+
+	status, err := url.QueryUnescape(sms.Body)
+	if err != nil {
+		return "", err
+	}
+
+	count, err := updateBaby(ctx, from, status)
+	if err != nil {
+		return "", err
 	}
 
 	res := twiml.NewResponse()
-	return res.Encode()
+	res.Add(&twiml.Sms{
+		Text: fmt.Sprintf("Updated %d sites", count),
+	})
+	return res.String()
 }
 
 func main() {
